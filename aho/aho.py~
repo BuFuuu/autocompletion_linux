@@ -18,6 +18,11 @@ class Node:
 		# Das Symbol, welches die Transition zu diesem Knoten bewirkt.
 		self.symbol = None
 		
+                # Das Rating, das Einfluss darauf hat, welches Wort in der
+                # Autokorrektur vorgeschlagen wird. Wird mit jedem Wort er-
+                # höht, das durch diesen Knoten erreicht werden kann.
+                self.rating = 0
+
 		# Alle Knoten, die von diesem erreicht werden können.
 		self.children = []
 		
@@ -31,7 +36,7 @@ class Node:
 		# Nur die Wurzel hat 'None' als ID. 
 		self.nid = None
 	@classmethod
-	def populated(cls, matches, fnode, symbol, string):
+	def populated(cls, matches, fnode, symbol, string, rating):
 		# Wir bauen auf einem zum größten Teil null-initialisierten
 		# Knoten auf und fügen Informationen hinzu, um einen neuen,
 		# nützlichen Knoten zu erstellen.
@@ -40,10 +45,28 @@ class Node:
 		self.symbol = symbol
 		self.matches = matches
 		self.nid = string
+                self.rating = rating
 		return self
 
 	def addChild(self, node):
 		self.children.append(node)
+
+        def getChildWithMaxRating(self):
+            childMaxRating = None
+            maxRating = 0
+
+            for child in self.children:
+                if int(child.rating) > maxRating:
+                    childMaxRating = child
+                    maxRating = child.rating
+
+            return childMaxRating
+    
+        # Add a score to the current rating. This happens every time, when
+        # the automaton is getting build and a letter from the patterns list
+        # matches an already existing letter.
+        def addRating(self, score):
+                self.rating = int(self.rating) + int(score)
 
 	# hasChild prüft, ob ein Knoten ein child hat, welches mit dem gegebenen
 	# Symbol angesprungen werden kann.
@@ -151,6 +174,10 @@ def buildAutomaton(patterns):
     # Jede string in unserer Pattern-Datei wird nun in den Baum eingefügt, ein Pattern
     # nach dem anderen.
     for p in patterns:
+    
+            score = p.split()[0]
+            p = p.split()[1]
+            
             # Wir beginnen immer an der Wurzel.
             curn = startnode
             # processedStr enthält die Zeichen, die bis zu dem aktuellen Punkt verwertet
@@ -164,11 +191,13 @@ def buildAutomaton(patterns):
                             # nötig ist, existiert bereits. Wir können also die ent-
                             # sprechende Transition nehmen und brauchen sonst nichts
                             # zu unternehmen.
+                            # Es muss noch das Rating erhöht werden.
+                            child.addRating(score)
                             curn = child
                     else:
                             # Eine Transition existiert noch nicht. Also wird ein neuer
                             # Knoten erstellt, der dieser Transition entspricht.
-                            newc = Node.populated([], startnode, c, processedStr)
+                            newc = Node.populated([], startnode, c, processedStr, score)
                             # Wir müssen den neuen Knoten in den Baum einfügen, nämlich
                             # als Kind des aktuellen.
                             curn.addChild(newc)
@@ -221,24 +250,33 @@ def processInputChar(c, stateInAutomaton, ctr):
 
 
 
+def followHighRatedPath(curn):
+    nextn = curn
+
+    while nextn != None:
+        oldn = nextn
+        print(oldn.rating)
+        nextn = nextn.getChildWithMaxRating()
+
+    return oldn
+
+
+
 #########################################################################################
 # Hier beginnt die Ausführung des Skripts, wenn es in der Kommandozeile aufgerufen wird.#
+# python aho.py -p ahoTest.txt
 #########################################################################################
 if __name__ == "__main__":
     # Erst ein wenig input parsing. Quick & dirty in diesem Fall, was hier nicht sehr 
     # schlimm ist, da wir sowieso nur immer genau 2 Paramete erwarten.
-    if len(sys.argv) < 5:
-            print "Usage: -p <patterns.txt> -t <text>"
+    if len(sys.argv) < 3:
+            print "Usage: -p <patterns.txt>"
             sys.exit(0)
 
-    if sys.argv[1] == "-t" and sys.argv[3] == "-p":
-            text = sys.argv[2]
-            patternfile = sys.argv[4]
-    elif sys.argv[3] == "-t" and sys.argv[1] == "-p":
-            text = sys.argv[4]
+    if sys.argv[1] == "-p":
             patternfile = sys.argv[2]
     else:
-            print "Usage: -p <patterns.txt> -t <text>"
+            print "Usage: -p <patterns.txt>"
             sys.exit(0)
 
     # Wir lesen die patterns in eine liste, strippen dabei bereits alle Leerzeichen und
@@ -258,12 +296,13 @@ if __name__ == "__main__":
     # fangen wir bei 0 mit dem Zählen an - je nach Geschmack kann dies selbstverständlich
     # auf 1 geändert werden.
     ctr = 0
-
     # Begonnen wird an an der Wurzel.
     state = tree
-
     # Nun wird der trie stumpf abgelaufen. Little excitement here.
-    for c in text:
+    while 1:
+        c = raw_input('gimme a char!')
         state = processInputChar(c, state, ctr)
-        
+        print(state.nid, state.rating) 
+        vorschlag = followHighRatedPath(state).nid
+        print("Vorschlag: ", vorschlag)
         ctr += 1
