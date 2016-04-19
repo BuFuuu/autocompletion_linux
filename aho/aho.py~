@@ -1,8 +1,16 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
+
 # ^^^ needed, as otherwise pretty German Umlaute can't be used.
+#
+# This is a modified Aho-Corasick algorithm. It users the tree
+# and the failnodes for matching words.
+#
+# The code for the original Aho-Corasick is contributed from
+# Johann Beleites
 
 import sys
+from operator import itemgetter
 
 # Es wird eine Knoten-Klasse definiert, aus der der für den Aho-Corasick
 # benötigte trie später gebaut wird.
@@ -252,15 +260,30 @@ def processInputChar(c, stateInAutomaton, ctr):
 
 def followHighRatedPath(curn):
     nextn = curn
+    matches = []
 
     while nextn != None:
+        matches.append([nextn.rating, nextn.matches])
         oldn = nextn
-        print(oldn.rating)
         nextn = nextn.getChildWithMaxRating()
 
-    return oldn
+    return matches
 
+def addLenghtBonus(matchesArray):
+    lenBounsFaktor = 25
+    
+    #delete empty Matches
+    matchesArray = [x for x in matchesArray if x[1]] 
+    
+    #only keep longest Matching if multiple
+    for entry in matchesArray:
+        entry[1] = max(entry[1], key=len)
+    
+    #add lenghtbonus
+    for entry in matchesArray:
+        entry[0] = int(entry[0]) + (len(entry[1] ) * len(entry[1]) * lenBounsFaktor)
 
+    return matchesArray
 
 #########################################################################################
 # Hier beginnt die Ausführung des Skripts, wenn es in der Kommandozeile aufgerufen wird.#
@@ -302,7 +325,11 @@ if __name__ == "__main__":
     while 1:
         c = raw_input('gimme a char!')
         state = processInputChar(c, state, ctr)
-        print(state.nid, state.rating) 
-        vorschlag = followHighRatedPath(state).nid
-        print("Vorschlag: ", vorschlag)
+        
+        matchesArray = followHighRatedPath(state)
+        matchesArray = addLenghtBonus(matchesArray)
+        highestRatingMatch = sorted(matchesArray, key=itemgetter(0))[-1] 
+
+        print(matchesArray)
+        print("Vorschlag: ",highestRatingMatch)
         ctr += 1
